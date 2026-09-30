@@ -294,6 +294,9 @@ void cia2_setup_context(machine_context_t *machinecontext)
     machinecontext->cia2 = lib_calloc(1, sizeof(cia_context_t));
     cia = machinecontext->cia2;
 
+#ifdef FEATURE_BUSTRACE
+    cia->bustrace_id = 2;
+#endif
     cia->prv = NULL;
     cia->context = NULL;
 

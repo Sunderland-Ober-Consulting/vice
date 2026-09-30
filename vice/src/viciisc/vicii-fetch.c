@@ -31,6 +31,7 @@
 
 #include "vice.h"
 
+#include "bustrace.h"
 #include "c64cart.h"
 #include "c64cartmem.h"
 #include "debug.h"
@@ -47,11 +48,19 @@
 
 /*-----------------------------------------------------------------------*/
 
+#ifdef FEATURE_BUSTRACE
+uint16_t vicii_fetch_phi1_addr;
+static uint16_t fetch_phi2_addr;
+#endif
+
 inline static uint8_t fetch_phi1(int addr)
 {
     uint8_t *p;
 
     addr = ((addr + vicii.vbank_phi1) & vicii.vaddr_mask_phi1) | vicii.vaddr_offset_phi1;
+#ifdef FEATURE_BUSTRACE
+    vicii_fetch_phi1_addr = (uint16_t)addr;
+#endif
 
     if (export.ultimax_phi1) {
         uint8_t value;
@@ -93,6 +102,9 @@ inline static uint8_t fetch_phi2(int addr)
     uint8_t *p;
 
     addr = ((addr + vicii.vbank_phi2) & vicii.vaddr_mask_phi2) | vicii.vaddr_offset_phi2;
+#ifdef FEATURE_BUSTRACE
+    fetch_phi2_addr = (uint16_t)addr;
+#endif
 
     if (export.ultimax_phi2) {
         uint8_t value;
@@ -144,6 +156,11 @@ inline static void sprite_dma_cycle_0(int i)
     if (check_sprite_dma(i)) {
         if (!vicii.prefetch_cycles) {
             sprdata = fetch_phi2((vicii.sprite[i].pointer << 6) + vicii.sprite[i].mc);
+#ifdef FEATURE_BUSTRACE
+            if (BUSTRACE_ON(BUSTRACE_STREAM_C64)) {
+                bustrace_c64_phi2_sprite(fetch_phi2_addr, sprdata);
+            }
+#endif
         }
 
         vicii.sprite[i].mc++;
@@ -167,6 +184,11 @@ inline static void sprite_dma_cycle_2(int i)
     if (check_sprite_dma(i)) {
         if (!vicii.prefetch_cycles) {
             sprdata = fetch_phi2((vicii.sprite[i].pointer << 6) + vicii.sprite[i].mc);
+#ifdef FEATURE_BUSTRACE
+            if (BUSTRACE_ON(BUSTRACE_STREAM_C64)) {
+                bustrace_c64_phi2_sprite(fetch_phi2_addr, sprdata);
+            }
+#endif
         }
 
         vicii.sprite[i].mc++;
@@ -227,6 +249,11 @@ void vicii_fetch_matrix(void)
     } else {
         vicii.vbuf[vicii.vmli] = fetch_phi2(v_fetch_addr(vicii.vc));
         vicii.cbuf[vicii.vmli] = mem_color_ram_vicii[vicii.vc];
+#ifdef FEATURE_BUSTRACE
+        if (BUSTRACE_ON(BUSTRACE_STREAM_C64)) {
+            bustrace_c64_c_access(fetch_phi2_addr, vicii.vbuf[vicii.vmli], vicii.cbuf[vicii.vmli]);
+        }
+#endif
     }
 }
 

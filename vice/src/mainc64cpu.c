@@ -34,6 +34,7 @@
 #include "alarm.h"
 #include "archdep.h"
 #include "autostart.h"
+#include "bustrace.h"
 
 #ifdef FEATURE_CPUMEMHISTORY
 #include "c64pla.h"
@@ -259,31 +260,52 @@ inline static void memmap_mem_update(unsigned int addr, int write, int dummy)
     monitor_memmap_store(addr, type);
 }
 
+#ifdef FEATURE_BUSTRACE
+#define BUSTRACE_CPU(addr, value, flags)                                            \
+    do {                                                                            \
+        if (BUSTRACE_ON(BUSTRACE_STREAM_C64)) {                                     \
+            bustrace_c64_cpu((uint16_t)(addr), (uint8_t)(value), (uint8_t)(flags)); \
+        }                                                                           \
+    } while (0)
+#else
+#define BUSTRACE_CPU(addr, value, flags)
+#endif
+
 static void memmap_mem_store(unsigned int addr, unsigned int value)
 {
     memmap_mem_update(addr, 1, 0);
+    BUSTRACE_CPU(addr, value, 0);
     (*_mem_write_tab_ptr[(addr) >> 8])((uint16_t)(addr), (uint8_t)(value));
 }
 
 static void memmap_mem_store_dummy(unsigned int addr, unsigned int value)
 {
     memmap_mem_update(addr, 1, 1);
+    BUSTRACE_CPU(addr, value, BUSTRACE_CPU_DUMMY);
     (*_mem_write_tab_ptr_dummy[(addr) >> 8])((uint16_t)(addr), (uint8_t)(value));
 }
 
 /* read byte, check BA and mark as read */
 static uint8_t memmap_mem_read(unsigned int addr)
 {
+    uint8_t value;
+
     check_ba();
     memmap_mem_update(addr, 0, 0);
-    return (*_mem_read_tab_ptr[(addr) >> 8])((uint16_t)(addr));
+    value = (*_mem_read_tab_ptr[(addr) >> 8])((uint16_t)(addr));
+    BUSTRACE_CPU(addr, value, BUSTRACE_CPU_READ);
+    return value;
 }
 
 static uint8_t memmap_mem_read_dummy(unsigned int addr)
 {
+    uint8_t value;
+
     check_ba();
     memmap_mem_update(addr, 0, 1);
-    return (*(_mem_read_tab_ptr_dummy[(addr) >> 8]))((uint16_t)(addr));
+    value = (*(_mem_read_tab_ptr_dummy[(addr) >> 8]))((uint16_t)(addr));
+    BUSTRACE_CPU(addr, value, BUSTRACE_CPU_READ | BUSTRACE_CPU_DUMMY);
+    return value;
 }
 
 #ifndef STORE
@@ -354,6 +376,12 @@ static uint8_t memmap_mem_read_dummy(unsigned int addr)
 #define PUSH(val) memmap_mem_store((0x100 + (reg_sp--)), (uint8_t)(val))
 #define PULL()    memmap_mem_read(0x100 + (++reg_sp))
 #define STACK_PEEK()  memmap_mem_read_dummy(0x100 + reg_sp)
+
+#else /* FEATURE_CPUMEMHISTORY */
+
+#ifdef FEATURE_BUSTRACE
+#error "the bus trace needs the cpu history feature"
+#endif
 
 #endif /* FEATURE_CPUMEMHISTORY */
 

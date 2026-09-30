@@ -37,12 +37,14 @@
 
 #include "6510core.h"
 #include "alarm.h"
+#include "bustrace.h"
 #include "debug.h"
 #include "drive.h"
 #include "drivecpu.h"
 #include "drive-check.h"
 #include "drivemem.h"
 #include "drivetypes.h"
+#include "iecbus.h"
 #include "interrupt.h"
 #include "lib.h"
 #include "log.h"
@@ -148,6 +150,106 @@ void drivecpu_setup_context(struct diskunit_context_s *drv, int i)
 #define LOAD_ZERO_ADDR_DUMMY(a) (LOAD_ZERO_DUMMY((a)) | (LOAD_ZERO_DUMMY((a) + 1) << 8))
 #define STORE_DUMMY(a, b)       (*drv->cpud->store_func_ptr_dummy[(a) >> 8])(drv, (uint16_t)(a), (uint8_t)(b))
 #define STORE_ZERO_DUMMY(a, b)  (*drv->cpud->store_func_ptr_dummy[0])(drv, (uint16_t)(a), (uint8_t)(b))
+
+#ifdef FEATURE_BUSTRACE
+
+/* Bus trace of drive 8: every access is reported with the clock at which
+   the core performed it. bustrace.c stamps the accesses of one loop
+   iteration with their exact cycles. */
+
+#define DRIVE_TRACE_STREAMS (BUSTRACE_MASK(BUSTRACE_STREAM_DRIVE8)      \
+                             | BUSTRACE_MASK(BUSTRACE_STREAM_DRIVE8_SYNC) \
+                             | BUSTRACE_MASK(BUSTRACE_STREAM_IEC))
+
+#define DRIVE_TRACED(drv) ((drv)->mynumber == 0 && (bustrace_active & DRIVE_TRACE_STREAMS))
+
+static inline uint8_t trace_access(diskunit_context_t *drv, unsigned int addr, uint8_t value,
+                                   uint8_t flags)
+{
+    if (DRIVE_TRACED(drv)) {
+        bustrace_drive_access((uint16_t)addr, value, flags, *drv->clk_ptr, iecbus.drv_port);
+    }
+    return value;
+}
+
+#undef LOAD
+#undef LOAD_ZERO
+#undef LOAD_ADDR
+#undef LOAD_ZERO_ADDR
+#undef STORE
+#undef STORE_ZERO
+#undef LOAD_DUMMY
+#undef LOAD_ZERO_DUMMY
+#undef LOAD_ADDR_DUMMY
+#undef LOAD_ZERO_ADDR_DUMMY
+#undef STORE_DUMMY
+#undef STORE_ZERO_DUMMY
+
+#define LOAD(a)                                                                 \
+    trace_access(drv, (a), (*drv->cpud->read_func_ptr[(a) >> 8])(drv, (uint16_t)(a)), \
+                 BUSTRACE_DRV_READ)
+#define LOAD_ZERO(a)                                                            \
+    trace_access(drv, (a), (*drv->cpud->read_func_ptr[0])(drv, (uint16_t)(a)),  \
+                 BUSTRACE_DRV_READ)
+#define STORE(a, b)                                                             \
+    (trace_access(drv, (a), (uint8_t)(b), 0),                                   \
+     (*drv->cpud->store_func_ptr[(a) >> 8])(drv, (uint16_t)(a), (uint8_t)(b)))
+#define STORE_ZERO(a, b)                                                        \
+    (trace_access(drv, (a), (uint8_t)(b), 0),                                   \
+     (*drv->cpud->store_func_ptr[0])(drv, (uint16_t)(a), (uint8_t)(b)))
+
+#define LOAD_DUMMY(a)                                                                 \
+    trace_access(drv, (a), (*drv->cpud->read_func_ptr_dummy[(a) >> 8])(drv, (uint16_t)(a)), \
+                 BUSTRACE_DRV_READ | BUSTRACE_DRV_DUMMY)
+#define LOAD_ZERO_DUMMY(a)                                                            \
+    trace_access(drv, (a), (*drv->cpud->read_func_ptr_dummy[0])(drv, (uint16_t)(a)),   \
+                 BUSTRACE_DRV_READ | BUSTRACE_DRV_DUMMY)
+#define STORE_DUMMY(a, b)                                                             \
+    (trace_access(drv, (a), (uint8_t)(b), BUSTRACE_DRV_DUMMY),                        \
+     (*drv->cpud->store_func_ptr_dummy[(a) >> 8])(drv, (uint16_t)(a), (uint8_t)(b)))
+#define STORE_ZERO_DUMMY(a, b)                                                        \
+    (trace_access(drv, (a), (uint8_t)(b), BUSTRACE_DRV_DUMMY),                        \
+     (*drv->cpud->store_func_ptr_dummy[0])(drv, (uint16_t)(a), (uint8_t)(b)))
+
+/* The two reads of a 16-bit address, low byte first as on the real bus. */
+static inline unsigned int load_addr(diskunit_context_t *drv, unsigned int a)
+{
+    unsigned int lo = LOAD(a);
+    return lo | (LOAD(a + 1) << 8);
+}
+
+static inline unsigned int load_zero_addr(diskunit_context_t *drv, unsigned int a)
+{
+    unsigned int lo = LOAD_ZERO(a);
+    return lo | (LOAD_ZERO(a + 1) << 8);
+}
+
+static inline unsigned int load_addr_dummy(diskunit_context_t *drv, unsigned int a)
+{
+    unsigned int lo = LOAD_DUMMY(a);
+    return lo | (LOAD_DUMMY(a + 1) << 8);
+}
+
+static inline unsigned int load_zero_addr_dummy(diskunit_context_t *drv, unsigned int a)
+{
+    unsigned int lo = LOAD_ZERO_DUMMY(a);
+    return lo | (LOAD_ZERO_DUMMY(a + 1) << 8);
+}
+
+#define LOAD_ADDR(a)            load_addr(drv, (a))
+#define LOAD_ZERO_ADDR(a)       load_zero_addr(drv, (a))
+#define LOAD_ADDR_DUMMY(a)      load_addr_dummy(drv, (a))
+#define LOAD_ZERO_ADDR_DUMMY(a) load_zero_addr_dummy(drv, (a))
+
+static inline unsigned int *trace_opcode(diskunit_context_t *drv, unsigned int *last_opcode_addr)
+{
+    if (DRIVE_TRACED(drv)) {
+        bustrace_drive_opcode();
+    }
+    return last_opcode_addr;
+}
+
+#endif /* FEATURE_BUSTRACE */
 
 #define JUMP(addr)                                                         \
     do {                                                                   \
@@ -412,8 +514,19 @@ void drivecpu_execute(diskunit_context_t *drv, CLOCK clk_value)
         cpu->cycle_accum &= 0xffff; /* keep reminder */
     }
 
+#ifdef FEATURE_BUSTRACE
+    if (DRIVE_TRACED(drv)) {
+        bustrace_drive_execute_begin(cpu->last_clk, clk_value, *drv->clk_ptr);
+    }
+#endif
+
     /* Run drive CPU emulation until the cpu->stop_clk clock has been reached. */
     while (*drv->clk_ptr < cpu->stop_clk) {
+#ifdef FEATURE_BUSTRACE
+        if (DRIVE_TRACED(drv)) {
+            bustrace_drive_iteration(*drv->clk_ptr);
+        }
+#endif
 
 /* Include the 6502/6510 CPU emulation core.  */
 
@@ -426,7 +539,12 @@ void drivecpu_execute(diskunit_context_t *drv, CLOCK clk_value)
 #define RMW_FLAG (cpu->rmw_flag)
 #define PAGE_ONE (cpu->pageone)
 #define LAST_OPCODE_INFO (cpu->last_opcode_info)
+#ifdef FEATURE_BUSTRACE
+/* 6510core.c sets this right before it fetches an opcode */
+#define LAST_OPCODE_ADDR (*trace_opcode(drv, &cpu->last_opcode_addr))
+#else
 #define LAST_OPCODE_ADDR (cpu->last_opcode_addr)
+#endif
 #define TRACEFLG (debug.drivecpu_traceflg[drv->mynumber])
 
 #define CPU_INT_STATUS (cpu->int_status)
@@ -464,6 +582,12 @@ void drivecpu_execute(diskunit_context_t *drv, CLOCK clk_value)
 
 #include "6510core.c"
     }
+
+#ifdef FEATURE_BUSTRACE
+    if (DRIVE_TRACED(drv)) {
+        bustrace_drive_execute_end(clk_value, *drv->clk_ptr);
+    }
+#endif
 
     cpu->last_clk = clk_value;
     /*drivecpu_sleep(drv);*/

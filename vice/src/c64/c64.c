@@ -35,6 +35,7 @@
 #include "attach.h"
 #include "autostart.h"
 #include "bbrtc.h"
+#include "bustrace.h"
 #include "c64-cmdline-options.h"
 #include "c64-memory-hacks.h"
 #include "c64-resources.h"
@@ -875,6 +876,12 @@ int machine_resources_init(void)
         return -1;
     }
 #endif
+#ifdef FEATURE_BUSTRACE
+    if (bustrace_resources_init() < 0) {
+        init_resource_fail("bus trace");
+        return -1;
+    }
+#endif
 #ifdef HAVE_MOUSE
     if (mouse_resources_init() < 0) {
         init_resource_fail("mouse");
@@ -911,6 +918,9 @@ int machine_resources_init(void)
 
 void machine_resources_shutdown(void)
 {
+#ifdef FEATURE_BUSTRACE
+    bustrace_resources_shutdown();
+#endif
     serial_shutdown();
     c64_resources_shutdown();
     plus60k_resources_shutdown();
@@ -938,6 +948,12 @@ int machine_cmdline_options_init(void)
         init_cmdline_options_fail("traps");
         return -1;
     }
+#ifdef FEATURE_BUSTRACE
+    if (bustrace_cmdline_options_init() < 0) {
+        init_cmdline_options_fail("bus trace");
+        return -1;
+    }
+#endif
     /* FIXME: we might want to move this into machine.c or init.c */
     if (maincpu_cmdline_options_init() < 0) {
         init_cmdline_options_fail("maincpu");

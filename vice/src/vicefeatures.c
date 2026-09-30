@@ -87,6 +87,13 @@ static const feature_list_t featurelist[] = {
 #else
         1 },
 #endif
+/* x64sc */
+    { "FEATURE_BUSTRACE", "Enable the bus trace.",
+#ifndef FEATURE_BUSTRACE
+        0 },
+#else
+        1 },
+#endif
 /* (all) */
     { "USE_VICE_THREAD", "UI and emu each on different threads.",
 #  ifndef USE_VICE_THREAD

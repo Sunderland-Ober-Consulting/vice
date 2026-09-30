@@ -34,6 +34,7 @@ option(VICE_AM_DUMP "Write am-dump.txt, the table of targets read from the Makef
 # negative-check aid for the reader's fragment exclusion; leave OFF
 option(AM_NO_FRAGMENT_EXCLUSION "Compile .c files that Makefile.am lists as headers" OFF)
 mark_as_advanced(AM_NO_FRAGMENT_EXCLUSION)
+option(VICE_BUSTRACE "Build the bus trace feature (x64sc)" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${VICE_SOURCE_DIR}/cmake")
 

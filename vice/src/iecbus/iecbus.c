@@ -31,16 +31,31 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "bustrace.h"
 #include "cia.h"
 #include "drive.h"
 #include "drivetypes.h"
 #include "iecbus.h"
 #include "iecdrive.h"
+#include "maincpu.h"
 #include "printer.h"
 #include "via.h"
 #include "types.h"
 #include "serial.h"
 #include "drive/iec/cmdhd.h"
+
+#ifdef FEATURE_BUSTRACE
+static void bustrace_cpu_write(void)
+{
+    if (BUSTRACE_ON(BUSTRACE_STREAM_IEC)) {
+        bustrace_iec(maincpu_clk, iecbus.cpu_bus, iecbus.drv_bus[8], iecbus.cpu_port,
+                     iecbus.drv_port, BUSTRACE_IEC_SOURCE_CPU);
+    }
+}
+#define BUSTRACE_CPU_WRITE() bustrace_cpu_write()
+#else
+#define BUSTRACE_CPU_WRITE()
+#endif
 
 #ifdef DEBUG_IECBUS
 #include "log.h"
@@ -284,6 +299,7 @@ static void iecbus_cpu_write_conf1(uint8_t data, CLOCK clock)
                                     & 0x80));
     }
     iec_update_ports();
+    BUSTRACE_CPU_WRITE();
 }
 
 /* Only the second disk unit (drive 9) is enabled.  */
@@ -348,6 +364,7 @@ static void iecbus_cpu_write_conf2(uint8_t data, CLOCK clock)
     }
 
     iec_update_ports();
+    BUSTRACE_CPU_WRITE();
 }
 
 static uint8_t iecbus_cpu_read_conf3(CLOCK clock)
@@ -427,6 +444,7 @@ static void iecbus_cpu_write_conf3(uint8_t data, CLOCK clock)
     }
 
     iec_update_ports();
+    BUSTRACE_CPU_WRITE();
 }
 
 static void calculate_callback_index(void)

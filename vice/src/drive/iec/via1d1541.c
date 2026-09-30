@@ -31,6 +31,7 @@
 
 #include <stdio.h>
 
+#include "bustrace.h"
 #include "debug.h"
 #include "drive.h"
 #include "drivesync.h"
@@ -241,6 +242,12 @@ static void store_prb(via_context_t *via_context, uint8_t byte, uint8_t p_oldpb,
                                 | ((iecbus->cpu_bus << 3) & 0x80));
 
             DEBUG_IEC_BUS_WRITE(iecbus->drv_port);
+#ifdef FEATURE_BUSTRACE
+            if (via1p->number == 0 && BUSTRACE_ON(BUSTRACE_STREAM_IEC)) {
+                bustrace_iec(bustrace_drive_stamp(), iecbus->cpu_bus, iecbus->drv_bus[8],
+                             iecbus->cpu_port, iecbus->drv_port, BUSTRACE_IEC_SOURCE_DRIVE);
+            }
+#endif
         } else {
             iec_drive_write((uint8_t)(~byte), via1p->number);
             DEBUG_IEC_BUS_WRITE(~byte);

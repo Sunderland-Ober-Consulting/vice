@@ -163,6 +163,7 @@ noinst_HEADERS = \
 	attach.h \
 	autostart.h \
 	autostart-prg.h \
+	bustrace.h \
 	c128ui.h \
 	c64ui.h \
 	cartio.h \
@@ -296,6 +297,7 @@ base_sources = \
 	attach.c \
 	autostart.c \
 	autostart-prg.c \
+	bustrace.c \
 	cbmdos.c \
 	cbmimage.c \
 	charset.c \

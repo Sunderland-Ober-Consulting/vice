@@ -136,6 +136,9 @@ typedef struct cia_context_s {
     char todlatched;
     uint8_t todalarm[4];
     uint8_t todlatch[4];
+#ifdef FEATURE_BUSTRACE
+    int bustrace_id;              /* 1, 2: the C64's CIAs in the bus trace; 0: not traced */
+#endif
     CLOCK todticks;               /* init to 100000 */
     uint8_t todtickcounter;
 

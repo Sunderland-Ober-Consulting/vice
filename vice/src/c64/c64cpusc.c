@@ -28,9 +28,31 @@
 
 #include <stdio.h>
 
+#include "bustrace.h"
 #include "cpmcart.h"
 #include "monitor.h"
 #include "vicii-cycle.h"
+
+/* The opcode fetch reads bytes below bank_limit directly from bank_base
+   rather than through LOAD, so it reports them to the bus trace itself. */
+#ifdef FEATURE_BUSTRACE
+#define BUSTRACE_FETCH(addr, value, flags)                                          \
+    do {                                                                            \
+        if (BUSTRACE_ON(BUSTRACE_STREAM_C64)) {                                     \
+            bustrace_c64_cpu((uint16_t)(addr), (uint8_t)(value),                    \
+                             (uint8_t)(BUSTRACE_CPU_READ | (flags)));               \
+        }                                                                           \
+    } while (0)
+#define BUSTRACE_OPCODE_NEXT()                   \
+    do {                                         \
+        if (BUSTRACE_ON(BUSTRACE_STREAM_C64)) {  \
+            bustrace_c64_opcode_next = 1;        \
+        }                                        \
+    } while (0)
+#else
+#define BUSTRACE_FETCH(addr, value, flags)
+#define BUSTRACE_OPCODE_NEXT()
+#endif
 
 /* ------------------------------------------------------------------------- */
 
@@ -127,15 +149,19 @@ int maincpu_ba_low_flags = 0;
             check_ba();                                        \
             o = (*((uint32_t *)(bank_base + reg_pc)) & 0xffffff); \
             MEMMAP_UPDATE(reg_pc);                             \
+            BUSTRACE_FETCH(reg_pc, o, BUSTRACE_CPU_OPCODE);    \
             SET_LAST_OPCODE(p0);                               \
             CLK_INC();                                         \
             check_ba();                                        \
+            BUSTRACE_FETCH(reg_pc + 1, o >> 8, 0);             \
             CLK_INC();                                         \
             if (fetch_tab[o & 0xff]) {                         \
                 check_ba();                                    \
+                BUSTRACE_FETCH(reg_pc + 2, o >> 16, 0);        \
                 CLK_INC();                                     \
             }                                                  \
         } else {                                               \
+            BUSTRACE_OPCODE_NEXT();                            \
             o = LOAD(reg_pc);                                  \
             SET_LAST_OPCODE(p0);                               \
             CLK_INC();                                         \
@@ -155,17 +181,21 @@ int maincpu_ba_low_flags = 0;
             check_ba();                                          \
             (o).ins = *(bank_base + reg_pc);                     \
             MEMMAP_UPDATE(reg_pc);                               \
+            BUSTRACE_FETCH(reg_pc, (o).ins, BUSTRACE_CPU_OPCODE); \
             SET_LAST_OPCODE(p0);                                 \
             CLK_INC();                                           \
             check_ba();                                          \
             (o).op.op16 = *(bank_base + reg_pc + 1);             \
+            BUSTRACE_FETCH(reg_pc + 1, (o).op.op16, 0);          \
             CLK_INC();                                           \
             if (fetch_tab[(o).ins]) {                            \
                 check_ba();                                      \
                 (o).op.op16 |= (*(bank_base + reg_pc + 2) << 8); \
+                BUSTRACE_FETCH(reg_pc + 2, (o).op.op16 >> 8, 0); \
                 CLK_INC();                                       \
             }                                                    \
         } else {                                                 \
+            BUSTRACE_OPCODE_NEXT();                              \
             (o).ins = LOAD(reg_pc);                              \
             SET_LAST_OPCODE(p0);                                 \
             CLK_INC();                                           \

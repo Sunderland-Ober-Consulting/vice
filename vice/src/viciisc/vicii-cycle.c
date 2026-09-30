@@ -33,7 +33,12 @@
 
 #include <string.h>
 
+#include "bustrace.h"
 #include "debug.h"
+#ifdef FEATURE_BUSTRACE
+#include "iecbus.h"
+#include "interrupt.h"
+#endif
 #include "lib.h"
 #include "log.h"
 #include "maincpu.h"
@@ -161,6 +166,29 @@ static inline uint8_t cycle_phi1_fetch(unsigned int cycle_flags)
 
     return data;
 }
+
+#ifdef FEATURE_BUSTRACE
+/* What cycle_phi1_fetch() is about to fetch, for the bus trace. */
+static inline uint8_t cycle_phi1_kind(unsigned int cycle_flags)
+{
+    if (cycle_is_fetch_g(cycle_flags)) {
+        return vicii.idle_state ? BUSTRACE_PHI1_IDLE_G : BUSTRACE_PHI1_G;
+    }
+    if (cycle_is_sprite_ptr_dma0(cycle_flags)) {
+        return BUSTRACE_PHI1_SPRITE_PTR;
+    }
+    if (cycle_is_sprite_dma1_dma2(cycle_flags)) {
+        if (vicii.sprite_dma & (1 << cycle_get_sprite_num(cycle_flags))) {
+            return BUSTRACE_PHI1_SPRITE_DMA;
+        }
+        return BUSTRACE_PHI1_IDLE;
+    }
+    if (cycle_is_refresh(cycle_flags)) {
+        return BUSTRACE_PHI1_REFRESH;
+    }
+    return BUSTRACE_PHI1_IDLE;
+}
+#endif
 
 static inline void check_vborder_top(int line)
 {
@@ -408,6 +436,15 @@ int vicii_cycle(void)
      */
 
     /* Phi1 fetch */
+#ifdef FEATURE_BUSTRACE
+    if (BUSTRACE_ON(BUSTRACE_STREAM_C64)) {
+        uint8_t kind = cycle_phi1_kind(vicii.cycle_flags);
+
+        vicii.last_read_phi1 = cycle_phi1_fetch(vicii.cycle_flags);
+        /* the sprite phi2 fetch above ended the previous cycle */
+        bustrace_c64_next_cycle(maincpu_clk, vicii_fetch_phi1_addr, vicii.last_read_phi1, kind);
+    } else
+#endif
     vicii.last_read_phi1 = cycle_phi1_fetch(vicii.cycle_flags);
 
     /* Check horizontal border flag */
@@ -620,6 +657,14 @@ int vicii_cycle(void)
     if (vicii.light_pen.trigger_cycle == maincpu_clk) {
         vicii_trigger_light_pen_internal(0);
     }
+
+#ifdef FEATURE_BUSTRACE
+    if (BUSTRACE_ON(BUSTRACE_STREAM_C64)) {
+        bustrace_c64_cycle_state(vicii.raster_line, vicii.raster_cycle, ba_low,
+                                 maincpu_int_status->nirq > 0, maincpu_int_status->nnmi > 0,
+                                 iecbus.cpu_port);
+    }
+#endif
 
     return ba_low;
 }

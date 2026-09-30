@@ -43,6 +43,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "bustrace.h"
 #include "cia.h"
 #include "ciatimer.h"
 #include "interrupt.h"
@@ -240,6 +241,35 @@ inline static void check_ciatodalarm(cia_context_t *cia_context, CLOCK rclk)
         cia_set_irq_flag(cia_context, rclk, CIA_IM_TOD);
     }
 }
+
+#ifdef FEATURE_BUSTRACE
+static void bustrace_tod_event(cia_context_t *cia_context, CLOCK clk, int kind, uint8_t flags)
+{
+    if (cia_context->bustrace_id == 0 || !BUSTRACE_ON(BUSTRACE_STREAM_TOD)) {
+        return;
+    }
+    if (cia_context->todstopped) {
+        flags |= BUSTRACE_TOD_STOPPED;
+    }
+    if (cia_context->todlatched) {
+        flags |= BUSTRACE_TOD_LATCHED;
+    }
+    if (!memcmp(cia_context->todalarm, cia_context->c_cia + CIA_TOD_TEN,
+                sizeof(cia_context->todalarm))) {
+        flags |= BUSTRACE_TOD_MATCH;
+    }
+    if ((cia_context->irqflags | cia_context->new_irqflags) & CIA_IM_TOD) {
+        flags |= BUSTRACE_TOD_ICR;
+    }
+    bustrace_tod(clk, cia_context->bustrace_id, kind, cia_context->c_cia + CIA_TOD_TEN,
+                 cia_context->todalarm, cia_context->todlatch, flags,
+                 cia_context->todtickcounter);
+}
+#define BUSTRACE_TOD(cia_context, clk, kind, flags) \
+    bustrace_tod_event((cia_context), (clk), (kind), (flags))
+#else
+#define BUSTRACE_TOD(cia_context, clk, kind, flags)
+#endif
 
 /* ------------------------------------------------------------------------- */
 /*
@@ -909,6 +939,9 @@ static void ciacore_store_internal(cia_context_t *cia_context, uint16_t addr, ui
                     cia_ifr_current(cia_context, rclk, CIA_IFR_CUR_NXT);
                 }
             }
+            BUSTRACE_TOD(cia_context, *(cia_context->clk_ptr),
+                         (cia_context->c_cia[CIA_CRB] & CIA_CRB_ALARM_ALARM)
+                         ? BUSTRACE_TOD_ALARM_WRITE : BUSTRACE_TOD_WRITE, 0);
             break;
 
         case CIA_SDR:           /* Serial Port output buffer */
@@ -1271,6 +1304,7 @@ uint8_t cia_read_(cia_context_t *cia_context, uint16_t addr)
             if (addr == CIA_TOD_HR) {
                 cia_context->todlatched = 1;
             }
+            BUSTRACE_TOD(cia_context, cia_context->read_clk, BUSTRACE_TOD_READ, 0);
             cia_context->last_read = cia_context->todlatch[addr - CIA_TOD_TEN];
             return cia_context->last_read;
             break;
@@ -2000,6 +2034,8 @@ static void ciacore_inttod(CLOCK offset, void *data)
         /* check alarm */
         check_ciatodalarm(cia_context, rclk);
     }
+
+    BUSTRACE_TOD(cia_context, rclk, BUSTRACE_TOD_TICK, update ? BUSTRACE_TOD_UPDATE : 0);
 }
 #undef TODRANDOM
 

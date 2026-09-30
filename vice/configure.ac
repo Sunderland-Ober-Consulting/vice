@@ -117,7 +117,8 @@ VICE_ARG_WITH_LIST(unzip-bin,               [  --with-unzip-bin        enables d
 VICE_ARG_WITH_LIST(libieee1284,             [  --with-libieee1284      use the libieee1284 parallel port library])
 VICE_ARG_ENABLE_LIST(arch,                  [  --enable-arch[[=arch]]  enable architecture specific compilation [[default=yes]]], [], [enable_arch=yes])
 VICE_ARG_ENABLE_LIST(cpuhistory,            [  --disable-cpuhistory    disable the 65xx cpu history feature])
-VICE_ARG_ENABLE_LIST(ethernet,              [  --enable-ethernet       enables The Final Ethernet emulation])
+VICE_ARG_ENABLE_LIST(bustrace,              [  --enable-bustrace       enable the bus trace (x64sc)])
+VICE_ARG_ENABLE_LIST(ethernet,             [  --enable-ethernet       enables The Final Ethernet emulation])
 VICE_ARG_ENABLE_LIST(ipv6,                  [  --disable-ipv6          disables the checking for IPv6 compatibility])
 VICE_ARG_ENABLE_LIST(no-pic,                [  --enable-no-pic         enable the use of the no-pic switch [[default=yes]]])
 VICE_ARG_ENABLE_LIST(realdevice,            [  --disable-realdevice    disables access to real peripheral devices (CBM4Linux/OpenCBM)])
@@ -451,6 +452,7 @@ is_beos=no
 DEBUG_SUPPORT="no "
 DEBUG_THREADS_SUPPORT="no "
 FEATURE_CPUMEMHISTORY_SUPPORT="no "
+FEATURE_BUSTRACE_SUPPORT="no "
 HAS_HIDMGR_SUPPORT="no "
 HAS_USB_JOYSTICK_SUPPORT="no "
 HAVE_AUDIO_UNIT_SUPPORT="no "
@@ -537,6 +539,14 @@ AS_IF([test x"$enable_cpuhistory" != "xno"],
   [
     AC_DEFINE(FEATURE_CPUMEMHISTORY,,[Use the 65xx cpu history feature.])
     FEATURE_CPUMEMHISTORY_SUPPORT="yes"
+  ])
+
+AS_IF([test x"$enable_bustrace" = "xyes"],
+  [
+    AS_IF([test x"$enable_cpuhistory" = "xno"],
+      [AC_MSG_ERROR([the bus trace needs the cpu history feature, do not use --disable-cpuhistory with --enable-bustrace])])
+    AC_DEFINE(FEATURE_BUSTRACE,,[Enable the bus trace.])
+    FEATURE_BUSTRACE_SUPPORT="yes"
   ])
 
 dnl New 8580 filters: Changed on 2020-08-23 from default 'no' to default 'yes'.
@@ -3924,6 +3934,7 @@ echo "MISC"
 echo "----"
 
 echo "65xx CPU history support      : $FEATURE_CPUMEMHISTORY_SUPPORT (--enable/disable-cpuhistory)"
+echo "Bus trace support             : $FEATURE_BUSTRACE_SUPPORT (--enable-bustrace)"
 echo "Debug support                 : $DEBUG_SUPPORT (--enable/disable-debug)"
 echo "Threading debug support       : $DEBUG_THREADS_SUPPORT (--enable/disable-debug-threads"
 echo "Build old x64 emulator        : $X64_INCLUDED (--enable/--disable-x64)"

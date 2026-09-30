@@ -40,4 +40,9 @@ uint8_t vicii_fetch_sprite_dma_1(int sprite);
 int vicii_check_sprite_ba(unsigned int cycle_flags);
 void vicii_fetch_sprites(unsigned int cycle_flags);
 
+#ifdef FEATURE_BUSTRACE
+/* The bus address of the latest phi1 fetch, for the bus trace. */
+extern uint16_t vicii_fetch_phi1_addr;
+#endif
+
 #endif
