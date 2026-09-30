@@ -1,0 +1,78 @@
+--------------------------------------------------------------------------------
+Building VICE with Microsoft Visual C++ and CMake
+--------------------------------------------------------------------------------
+
+This builds the headless x64sc (C64, cycle exact) and c1541 for 64-bit Windows
+with the Microsoft compiler. It needs nothing but Visual Studio 2022 and a
+lexer/parser generator: no MSYS2 or MinGW, no autotools, no Perl.
+
+The source lists are not maintained twice. CMakeLists.txt reads the Makefile.am
+files and configure.ac of the autotools build (cmake/AutomakeReader.cmake), so
+files that are added or removed there are picked up here. What `configure` would
+decide for this configuration is written down in
+cmake/VicePlatformWindowsHeadless.cmake. A construct in a Makefile.am that the
+reader does not understand stops the configuration with an error naming the file
+and line; it is never skipped.
+
+Note: this is a different thing from the "cmake-bootstrap.sh" flow described in
+CMake-Howto.txt, which generates CMakeLists.txt files from a configured tree
+(and deletes existing ones). Use one or the other.
+
+--------------------------------------------------------------------------------
+Prerequisites
+--------------------------------------------------------------------------------
+
+ - Visual Studio 2022 with the "Desktop development with C++" workload. This
+   provides the compiler, the Windows SDK, CMake (3.21 or later is required) and
+   Ninja.
+ - bison and flex, for the monitor's grammar. The MSYS2 packages "bison" and
+   "flex" work, as does win_flex_bison. They are found by CMake's FindBISON and
+   FindFLEX; point CMake at them with BISON_EXECUTABLE and FLEX_EXECUTABLE if
+   they are not on PATH.
+
+zlib is included in src/lib/zlib and built as part of the project.
+
+--------------------------------------------------------------------------------
+Building
+--------------------------------------------------------------------------------
+
+Open an "x64 Native Tools Command Prompt for VS 2022" (or run vcvarsall.bat
+amd64), go to the directory that contains this file's CMakeLists.txt (vice/ in
+the source tree), and run:
+
+  cmake --preset msvc-release -DBISON_EXECUTABLE=C:/msys64/usr/bin/bison.exe -DFLEX_EXECUTABLE=C:/msys64/usr/bin/flex.exe
+  cmake --build --preset msvc-release
+
+The first command runs a few dozen compiler probes and takes about a minute; the
+build takes a few minutes. Use "msvc-debug" instead of "msvc-release" for an
+unoptimized build. The build directory is build/msvc-release (or msvc-debug).
+
+The programs are written to the build directory: x64sc.exe and c1541.exe. The
+build also copies the C64, DRIVES and PRINTER data directories next to them,
+which is where the emulator looks for its ROMs. x64sc has no window; it is
+driven through the binary monitor, for instance
+
+  x64sc.exe -default -warp +sound -binarymonitor -binarymonitoraddress ip4://127.0.0.1:6510
+
+The directory must not contain spaces.
+
+--------------------------------------------------------------------------------
+Options
+--------------------------------------------------------------------------------
+
+ -DVICE_BUNDLED_ZLIB=OFF   use a zlib that CMake finds instead of src/lib/zlib
+ -DVICE_AM_DUMP=ON         also write <build>/am-dump.txt, the table of targets
+                           the reader made (sources, include directories,
+                           defines, link libraries), and check it with
+
+                             cmake -DDUMP=build/msvc-release/am-dump.txt -P cmake/check-am-dump.cmake
+
+--------------------------------------------------------------------------------
+What is left out
+--------------------------------------------------------------------------------
+
+Only the headless x64sc and c1541 are built. The other emulators, the SDL and
+GTK front-ends, PNG and libcurl support, and vsid (which needs the "xa"
+assembler) are not part of this configuration.
+
+The build does not include reSIDfp; reSID is the SID engine.
