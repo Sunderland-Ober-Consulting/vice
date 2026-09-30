@@ -89,6 +89,8 @@
 #include <conio.h>
 #include <windows.h>
 #include <io.h>
+#include <stdlib.h>
+#include <string.h>
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf  // Microsoft headers use underscores in some names
