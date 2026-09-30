@@ -23,7 +23,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#ifndef _MSC_VER
+#ifdef _MSC_VER
+#include <io.h>
+#else
 #include <unistd.h>
 #endif
 #include <math.h>
@@ -41,7 +43,14 @@
 
 #define AVI_HEADER_SIZE  (500)
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
+#ifdef _MSC_VER
+/* MSVC has no __BYTE_ORDER and no __builtin_bswap*; it only targets
+ * little endian machines */
+# define __builtin_bswap32(x) _byteswap_ulong(x)
+# define __builtin_bswap16(x) _byteswap_ushort(x)
+#endif
+
+#if defined(_MSC_VER) || __BYTE_ORDER == __LITTLE_ENDIAN
 # define HTOBE32(x) __builtin_bswap32(x)
 # define BETOH32(x) __builtin_bswap32(x)
 # define HTOBE16(x) __builtin_bswap16(x)
