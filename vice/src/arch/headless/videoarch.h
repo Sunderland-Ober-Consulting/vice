@@ -65,6 +65,10 @@ typedef struct video_canvas_s {
 } video_canvas_t;
 
 typedef struct vice_renderer_backend_s {
+/* empty struct is a GNU extension, so add a dummy for non GNU compilers */
+#ifndef __GNUC__
+    char dummy;
+#endif
 } vice_renderer_backend_t;
 
 #endif
