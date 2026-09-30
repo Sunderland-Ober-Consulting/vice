@@ -67,6 +67,8 @@ Options
 
                              cmake -DDUMP=build/msvc-release/am-dump.txt -P cmake/check-am-dump.cmake
 
+ -DVICE_BUSTRACE=ON        build the bus trace (see doc/bus-trace.txt)
+
 --------------------------------------------------------------------------------
 What is left out
 --------------------------------------------------------------------------------

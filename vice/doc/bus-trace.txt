@@ -1,0 +1,285 @@
+
+VICE bus trace
+==============
+
+The bus trace records, cycle by cycle, what happens on the buses of the C64,
+its drive 8 and the IEC bus, and writes it to a binary file. It is available
+in x64sc only.
+
+The feature is compiled in only when asked for:
+
+  ./configure --enable-bustrace          (needs the cpu history feature, which
+                                          is on unless --disable-cpuhistory)
+  cmake -DVICE_BUSTRACE=ON               (MSVC build, see
+                                          doc/building/MSVC-CMake-Howto.txt)
+
+Without it the resources and command line options below do not exist and the
+emulation code is unchanged. With it compiled in but no trace file set, the
+cost is a test of one variable per hook.
+
+
+Resources and command line options
+-----------------------------------
+
+  BusTraceFile      -bustracefile <name>
+        The file to write. Setting it opens the file and starts the trace;
+        setting it to the empty string (or quitting the emulator) closes the
+        file. An existing file is overwritten. The binary monitor cannot set
+        a resource to the empty string, so a client of the binary monitor
+        ends the trace by quitting the emulator, which completes the file.
+
+  BusTraceStreams   -bustracestreams <mask>
+        The streams to write, as a bit mask of stream ids (see below):
+        1 c64, 2 drive8, 4 drive8.sync, 8 iec, 16 tod. Default 31 (all).
+        Takes effect the next time BusTraceFile is set.
+
+  BusTraceStartClk  -bustracestart <clock>
+  BusTraceStopClk   -bustracestop <clock>
+        The window [start, stop) in main CPU clocks. 0 for the start means
+        "from when BusTraceFile is set" (the first complete cycle after it),
+        0 for the stop means "never". Both take effect the next time
+        BusTraceFile is set.
+
+The resources are integers, so the clocks they can name are limited to
+2^31-1. The file itself holds 64-bit clocks.
+
+The options are processed in the order given and the trace file is opened when
+its resource is set, so -bustracefile should come after the other three.
+
+
+Conventions
+-----------
+
+All values are little endian. "The main clock" is maincpu_clk.
+
+The access clock N of a CPU access is the value of maincpu_clk when the access
+is made, that is, the number of main CPU cycles completed before it. The
+monitor and the cpu history report the clock after an instruction, which for
+its last cycle is N + 1.
+
+The drive has a clock of its own (the drive CPU clock of drive 8). The drive8
+stream is stamped in drive cycles; the drive8.sync stream relates them to the
+main clock.
+
+
+File layout
+-----------
+
+The header is 128 bytes:
+
+  offset  type      field
+  0       char[4]   magic "VBTR"
+  4       u16       version, 1
+  6       u16       header size, 128
+  8       u32       mask of the streams written
+  12      u32       main CPU cycles per second (PAL 985248, NTSC 1022727)
+  16      u64       clock of the first c64 record (the first main clock
+                    written if there is none)
+  24      u64       stop clock (0: unbounded)
+  32      u32       drive 8 clock in Hz (0 if the drive did not run in the
+                    window)
+  36      u32       drive 8 sync factor (0 likewise)
+  40      char[32]  VICE version, NUL padded
+  72      -         reserved, zero (56 bytes)
+
+The header is written when the file is opened and written again, with the
+final values, when it is closed.
+
+The chunks follow the header. A chunk is
+
+  u32 stream id, u32 byte length, then byte length bytes
+
+of fixed size records of that stream. Each stream is collected in a 1 MiB
+buffer of its own, and a buffer is written as one chunk when it is full and
+when the file is closed, so chunks of different streams interleave in the
+file. The records of one stream are in that stream's order.
+
+The last chunk is the end chunk, with stream id 0. Its contents are
+
+  u32 count, then count times { u32 stream id, u64 number of records }
+
+for the streams that were written. A file without an end chunk was not closed
+properly (the emulator died, or the disk was full; the latter is also logged).
+
+  id  stream       record size  clock
+  1   c64          20           none, consecutive main cycles
+  2   drive8       16           drive cycle
+  3   drive8.sync  16           main and drive
+  4   iec          16           main (source 0) or drive (source 1)
+  5   tod          24           main
+
+
+The c64 stream
+--------------
+
+One record for every main cycle, including the cycles the VIC-II steals from
+the CPU. Record i is the cycle whose clock is the header's start clock + i;
+there are no gaps. A record holds the phi1 fetch of the VIC-II in that cycle,
+its c-access, the CPU access of the cycle and its phi2 sprite fetch.
+
+The order inside vicii_cycle() is: the phi2 sprite fetch of the previous cycle,
+the phi1 fetch of this cycle, the c-access of this cycle. The CPU access of
+the cycle comes after those. So a CPU write in a record is seen by the phi2
+sprite fetch of the same record and by the phi1 fetch and c-access of the
+next record, never by the phi1 fetch and c-access of its own record.
+
+  offset  type  field
+  0       u16   CPU address
+  2       u8    CPU data (read or written)
+  3       u8    CPU flags:
+                  b0 read
+                  b1 dummy access
+                  b2 opcode fetch
+                  b3 no access (the CPU was stalled by BA; address and data
+                     are zero)
+                  b4 BA low
+                  b5 IRQ line low
+                  b6 NMI line low
+                  b7 more than one CPU access in this cycle
+  4       u16   phi1 address, after bank, mask and offset
+  6       u8    phi1 byte
+  7       u8    VIC-II flags:
+                  b0-b2 kind of the phi1 fetch:
+                    0 idle ($3FFF), 1 graphics, 2 idle state graphics,
+                    3 refresh, 4 sprite pointer, 5 sprite data
+                  b3 c-access valid
+                  b4 phi2 sprite fetch valid
+  8       u16   c-access address (if b3)
+  10      u8    c-access byte
+  11      u8    c-access colour nibble
+  12      u16   phi2 sprite address (if b4)
+  14      u8    phi2 sprite byte
+  15      u8    IEC cpu_port
+  16      u16   raster line
+  18      u8    raster cycle (VICE's, counted from 0)
+  19      u8    main clock & 0xff, for checking the record count
+
+The c-access is recorded only when the VIC-II actually fetches it, not during
+the three prefetch cycles of a bad line in which the CPU still has the bus.
+
+Bit 7 of the CPU flags is set when the CPU made more than one access in one
+cycle. The first access is the one recorded.
+
+Opcode fetches are flagged in both paths of the CPU's fetch: the fast path
+that reads straight from memory and the path that goes through LOAD.
+
+The file is about 20 bytes per main cycle, 19.7 MB per PAL second.
+
+
+The drive8 stream
+-----------------
+
+One record for every bus access of the 1541 CPU (drive 8 only).
+
+The drive CPU loop runs one instruction (or an interrupt entry plus the first
+instruction) per iteration. An access is stamped with the drive clock at the
+start of its iteration plus its ordinal within the iteration, which is the
+drive cycle in which the access happens. The clock VICE's own drive bus
+functions saw for the access (which is advanced per instruction) is recorded
+too, as an offset from the stamp.
+
+Three cases differ from one access per cycle:
+
+  - RTS reads the target address twice from the stack; the first of the two
+    reads is dropped and flag b5 is set on the record that follows it.
+  - The undocumented NOP zp ($04, $44, $64) and the reset entry perform fewer
+    accesses than they take cycles; all their records carry flag b4.
+  - A 16 bit address is read low byte first, then the high byte.
+
+  offset  type  field
+  0       u64   drive cycle (the stamp)
+  8       u16   address
+  10      u8    data
+  11      u8    flags:
+                  b0 read
+                  b1 dummy access
+                  b2 opcode fetch
+                  b3 interrupt entry (an access before the opcode fetch)
+                  b4 short instruction
+                  b5 RTS duplicate dropped
+  12      u16   the clock the access was made with, minus the stamp
+                (saturating at 65535)
+  14      u8    IEC drv_port
+  15      u8    reserved
+
+Records are written for iterations in a catch-up whose target main clock is
+inside the window.
+
+
+The drive8.sync stream
+----------------------
+
+The drive is run ahead to a given main clock each time the C64 side needs it
+(drivecpu_execute). One record is written at the end of each such catch-up:
+
+  offset  type  field
+  0       u64   main clock the catch-up ran to
+  8       u64   drive clock reached
+
+The first catch-up inside the window also writes a record at its start, the
+main clock the previous catch-up ran to and the drive clock then, so that
+every traced drive cycle lies between two sync records.
+
+To convert a drive cycle d to a main clock, find the sync record cur with
+prev.drive <= d < cur.drive, where prev is the record before it. Then
+
+  main = prev.main + floor((d - prev.drive) * (cur.main - prev.main)
+                           / (cur.drive - prev.drive))
+
+The header's sync factor is for checking only.
+
+
+The iec stream
+--------------
+
+One record each time a write to the IEC bus changes any of the four values
+below. Records are in the order the writes happened.
+
+  offset  type  field
+  0       u64   clock (see source)
+  8       u8    cpu_bus
+  9       u8    drv_bus[8]
+  10      u8    cpu_port
+  11      u8    drv_port
+  12      u8    source: 0 write by the C64 (CIA 2), 1 write by the drive (VIA 1)
+  13      -     reserved (3 bytes)
+
+The clock of a source 0 record is the main access clock of the write. The
+clock of a source 1 record is the drive stamp of the store that caused it,
+the same value as in that access's drive8 record; it is a drive cycle, to be
+converted with the drive8.sync stream.
+
+The bits are those of iecbus.h: in cpu_bus bit 7 is DATA, bit 6 CLK and bit 4
+ATN as the C64 drives them; in cpu_port and drv_port a set bit is a released
+line.
+
+
+The tod stream
+--------------
+
+One record for every tick of the time of day clock input, every access to a
+TOD register and every alarm write, of each of the two CIAs of the C64.
+
+  offset  type  field
+  0       u64   main clock
+  8       u8    CIA, 1 or 2
+  9       u8    kind: 0 tick, 1 register read, 2 register write,
+                3 alarm write
+  10      u8[4] TOD 10ths, seconds, minutes, hours
+  14      u8[4] alarm
+  18      u8[4] read latch
+  22      u8    flags:
+                  b0 TOD stopped
+                  b1 read latch active
+                  b2 TOD equals the alarm
+                  b3 the TOD flag of the interrupt control register is set
+                  b4 update (the divider of the tick input rolled over and
+                     the TOD counted)
+  23      u8    tick counter
+
+The clock of a tick is the clock at which the tick was scheduled. The clock of
+a register access is its access clock.
+
+VICE delays the TOD input by a random amount of 0 to 3 cycles, seeded from the
+time of day, so the clocks of the ticks differ from run to run. The stream
+records when each tick actually happened.

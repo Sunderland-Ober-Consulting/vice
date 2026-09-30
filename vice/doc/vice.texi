@@ -9637,6 +9637,31 @@ Set the chance of any bit to randomly toggle (0-4096)
 @item DebugCartEnable
 Boolean specifying whether the debug "cartridge" used for the test suite is enabled.
 
+@vindex BusTraceFile
+@item BusTraceFile
+String specifying the file the bus trace is written to. Setting it starts the
+trace, setting it to the empty string ends it. Only available when VICE was
+configured with @code{--enable-bustrace}, see @file{doc/bus-trace.txt}
+(x64sc).
+
+@vindex BusTraceStreams
+@item BusTraceStreams
+Integer bit mask specifying the streams of the bus trace: 1 C64, 2 drive 8,
+4 drive 8 sync, 8 IEC bus, 16 CIA time of day. Only available when VICE was
+configured with @code{--enable-bustrace} (x64sc).
+
+@vindex BusTraceStartClk
+@item BusTraceStartClk
+Integer specifying the first CPU clock of the bus trace, 0 to start when
+@code{BusTraceFile} is set. Only available when VICE was configured with
+@code{--enable-bustrace} (x64sc).
+
+@vindex BusTraceStopClk
+@item BusTraceStopClk
+Integer specifying the CPU clock at which the bus trace stops, 0 to never
+stop. Only available when VICE was configured with @code{--enable-bustrace}
+(x64sc).
+
 @vindex LogLevelANE
 @item LogLevelANE
 Integer specifying the log mode (0=none 1=only unstable 2=all)
@@ -9709,6 +9734,31 @@ Disable/enable calling of the exception handler
 @item -debugcart
 @itemx +debugcart
 Enable/disable the debug "cartridge" used for the test suite.
+
+@findex -bustracefile
+@item -bustracefile <name>
+Write a bus trace to the given file
+(@code{BusTraceFile})
+(x64sc, only when configured with @code{--enable-bustrace}, see
+@file{doc/bus-trace.txt}).
+
+@findex -bustracestreams
+@item -bustracestreams <mask>
+Streams to trace: 1: C64, 2: drive 8, 4: drive 8 sync, 8: IEC bus, 16: CIA TOD
+(@code{BusTraceStreams})
+(x64sc, only when configured with @code{--enable-bustrace}).
+
+@findex -bustracestart
+@item -bustracestart <clock>
+First CPU clock to trace, 0 to start when the file is set
+(@code{BusTraceStartClk})
+(x64sc, only when configured with @code{--enable-bustrace}).
+
+@findex -bustracestop
+@item -bustracestop <clock>
+CPU clock at which tracing stops, 0 to never stop
+(@code{BusTraceStopClk})
+(x64sc, only when configured with @code{--enable-bustrace}).
 
 @findex -aneloglevel
 @item -aneloglevel <mode>
@@ -9944,7 +9994,7 @@ images are supported:
 
 @itemize @bullet
 @item
-@file{.crt} images, as used by the CCS64 emulator by Per Håkan Sundell
+@file{.crt} images, as used by the CCS64 emulator by Per Hï¿½kan Sundell
 @item
 raw @file{.bin} images, with or without load address
 @end itemize
@@ -12132,7 +12182,7 @@ choosing one of the available predefined color sets, for example:
 @item
 @file{c64s.vpl} (``C64S''), palette taken from the shareware C64S emulator by Miha Peternel.
 @item
-@file{ccs64.vpl} (``CCS64''), palette taken from the shareware CCS64 emulator by Per Håkan Sundell.
+@file{ccs64.vpl} (``CCS64''), palette taken from the shareware CCS64 emulator by Per Hï¿½kan Sundell.
 @item
 @file{frodo.vpl} (``Frodo''), palette taken from the free Frodo emulator by Christian Bauer
 (@uref{https://frodo.cebix.net/}).
@@ -15045,7 +15095,7 @@ images are supported:
 
 @itemize @bullet
 @item
-@file{.crt} images, as originally used by the CCS64 emulator by Per Håkan Sundell
+@file{.crt} images, as originally used by the CCS64 emulator by Per Hï¿½kan Sundell
 @item
 raw @file{.bin} images, without load address
 @item
@@ -24579,7 +24629,7 @@ the file names can't have trailing spaces.
 Ettore Perazzoli.)
 
 This format was defined in 1998 as a cooperative effort between several
-emulator people, mainly Per Håkan Sundell, author of the CCS64 C64
+emulator people, mainly Per Hï¿½kan Sundell, author of the CCS64 C64
 emulator, Andreas Boose of the VICE CBM emulator team and Joe
 Forster/STA, the author of Star Commander.  It was the first real public
 attempt to create a format for the emulator community which removed
@@ -37238,7 +37288,7 @@ Implemented the SDL UI slider control and fixed some
 GP2X/Dingoo SDL UI issues.
 
 @item
-@b{István Fábián}
+@b{Istvï¿½n Fï¿½biï¿½n}
 Contributed a initial patch with the more correct 1541 bus
 timing code and which gave us hints for to improving the 1541
 emulation.
@@ -37349,7 +37399,7 @@ driver, basic support for the OPENCBM library and some
 other patches.
 
 @item
-@b{Frank König}
+@b{Frank Kï¿½nig}
 Contributed the Win32 joystick autofire feature.
 
 @item
@@ -37398,7 +37448,7 @@ CPU emulation.
 Provided some monitor fixes.
 
 @item
-@b{Marko Mäkelä}
+@b{Marko Mï¿½kelï¿½}
 Wrote lots of CPU documentation. Wrote the VIC Flash Plugin
 cartridge emulation in xvic. Wrote the Ultimem cartridge
 emulation in xvic.
@@ -37465,7 +37515,7 @@ Donated @code{findpath.c}.
 Digitalized the C64 colors used in the (old) default palette.
 
 @item
-@b{Lasse Öörni}
+@b{Lasse ï¿½ï¿½rni}
 Contributed the Windows Multimedia sound driver
 
 @item
@@ -37716,7 +37766,7 @@ thanks goes to the following people:
 
 Last but not least, a very special thank to Andreas Arens, Lutz
 Sammer, Edgar Tornig, Christian Bauer, Wolfgang Lorenz, Miha
-Peternel, Per Håkan Sundell, David Horrocks, Benjamin Rosseaux and William McCabe
+Peternel, Per Hï¿½kan Sundell, David Horrocks, Benjamin Rosseaux and William McCabe
 for writing cool emulators to compete with.  @t{:-)}
 
 @c end of file generation section.

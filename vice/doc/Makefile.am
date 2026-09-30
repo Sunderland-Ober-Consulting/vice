@@ -1,6 +1,7 @@
 SUBDIRS = building html readmes vim
 
 MISC_DOX = \
+	bus-trace.txt \
 	CIA-README.txt \
 	coding-guidelines.txt \
 	Documentation-Howto.txt \
