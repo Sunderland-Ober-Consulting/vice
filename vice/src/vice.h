@@ -48,9 +48,9 @@
  * alpha          faster           slower        __alpha__
  * arm (gp2x)     slower (*)       faster (*)    GP2X
  * ppc            slower           faster        __powerpc__ || __ppc__
- * x86            slower           faster        __i386__
+ * x86            slower           faster        __i386__ || _M_IX86
  * m68020+        slower           faster        __m680[2346]0__
- * x86_64         slower           faster        __x86_64__ || __amd64__
+ * x86_64         slower           faster        __x86_64__ || __amd64__ || _M_X64
  *
  * arm           untested         untested       __arm__ && !GP2X
  * bfin          untested         untested       BFIN
@@ -66,12 +66,12 @@
  */
 
 /* Allow unaligned access for i386+ based platforms */
-#ifdef __i386__
+#if defined(__i386__) || defined(_M_IX86)
 #define ALLOW_UNALIGNED_ACCESS
 #endif
 
 /* Allow unaligned access for amd64/x86_64 based platforms */
-#if defined(__x86_64__) || defined(__amd64__)
+#if defined(__x86_64__) || defined(__amd64__) || defined(_M_X64)
 #define ALLOW_UNALIGNED_ACCESS
 #endif
 
