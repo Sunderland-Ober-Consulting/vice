@@ -1,0 +1,18 @@
+zlib, as used by the CMake build
+================================
+
+This directory holds the sources of the zlib compression library, unmodified.
+
+  version   1.3.2
+  origin    https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz
+  sha256    bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16
+            (the same value is listed on https://zlib.net/ for that tarball)
+  license   see LICENSE
+
+Only the files needed to build the library are kept: the .c files listed in
+ZLIB_SRCS of zlib's own CMakeLists.txt, the headers they include (zlib.h,
+zconf.h and the private headers), LICENSE and README. Each of them is
+byte-identical to the file in the release tarball.
+
+It is built as a static library by the top level CMakeLists.txt when the
+option VICE_BUNDLED_ZLIB is ON, which is the default for MSVC builds.
