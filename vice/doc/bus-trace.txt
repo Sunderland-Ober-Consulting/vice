@@ -280,6 +280,9 @@ TOD register and every alarm write, of each of the two CIAs of the C64.
 The clock of a tick is the clock at which the tick was scheduled. The clock of
 a register access is its access clock.
 
-VICE delays the TOD input by a random amount of 0 to 3 cycles, seeded from the
-time of day, so the clocks of the ticks differ from run to run. The stream
-records when each tick actually happened.
+Each interval of the TOD input is the number of cycles per second divided by
+the power frequency, plus or minus a random 0 to 3 cycles, steered towards the
+exact rate and resynchronised every 50 inputs. The random generator is seeded
+from the time of day unless -seed is given, so a trace whose window holds a TOD
+input is reproducible only with -seed. The stream records when each tick
+actually happened.
